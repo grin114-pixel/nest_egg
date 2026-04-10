@@ -43,17 +43,6 @@ function formatAmount(n: number): string {
   return n.toLocaleString('ko-KR')
 }
 
-function formatDeltaPercent(current: number, previous: number | null): string | null {
-  if (previous === null) return null
-  const prev = Number(previous)
-  const cur = Number(current)
-  if (!isFinite(prev) || !isFinite(cur)) return null
-  if (prev === 0) return null
-  const pct = ((cur - prev) / Math.abs(prev)) * 100
-  const sign = pct > 0 ? '+' : pct < 0 ? '' : ''
-  return `${sign}${pct.toFixed(1)}%`
-}
-
 function makeDefaultRows(count = 10): TableRow[] {
   return Array.from({ length: count }, (_, i) => ({
     id: genId(),
@@ -1033,8 +1022,6 @@ export default function App() {
         <div className="card-list">
           {cards.map((card, i) => {
             const total = displayTotal(card)
-            const prevTotal = cards[i + 1] ? displayTotal(cards[i + 1]) : null
-            const deltaText = formatDeltaPercent(total, prevTotal)
             return (
               <div
                 key={card.id}
@@ -1043,10 +1030,7 @@ export default function App() {
               >
                 <div className="card-header">
                   <p className="card-name">{card.name}</p>
-                  <div className="card-amount-table" aria-label="총액 및 증감률">
-                    <span className="card-amount">{formatAmount(total)}원</span>
-                    <span className="card-amount-delta">{deltaText ? `(${deltaText})` : ''}</span>
-                  </div>
+                  <span className="card-amount">{formatAmount(total)}원</span>
                   <button
                     className="card-delete-btn"
                     title="카드 삭제"

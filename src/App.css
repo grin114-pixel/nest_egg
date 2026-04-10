@@ -515,16 +515,6 @@
   gap: 12px;
 }
 
-.card-amount-table {
-  display: grid;
-  grid-template-columns: 120px 74px;
-  align-items: baseline;
-  justify-items: end;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
 .card-name {
   font-size: 1rem;
   font-weight: 800;
@@ -544,16 +534,10 @@
   white-space: nowrap;
 }
 
-.card-amount-delta {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #6b7280;
-}
-
 .card-delete-btn {
   width: 30px;
   height: 30px;
-  border: none;
+  border: 1px solid rgba(236, 72, 153, 0.22);
   background: transparent;
   color: #e0a8c2;
   display: inline-flex;
@@ -561,14 +545,15 @@
   justify-content: center;
   cursor: pointer;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   flex-shrink: 0;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 
 .card-delete-btn:hover {
   color: #ef4444;
   background: #fff1f2;
+  border-color: rgba(239, 68, 68, 0.28);
 }
 
 .card-delete-btn svg {
