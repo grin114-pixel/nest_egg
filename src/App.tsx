@@ -43,6 +43,13 @@ function formatAmount(n: number): string {
   return n.toLocaleString('ko-KR')
 }
 
+function extractYear(cardName: string): number | null {
+  const m = String(cardName ?? '').trim().match(/^(\d{4})년\b/)
+  if (!m) return null
+  const y = Number(m[1])
+  return Number.isFinite(y) ? y : null
+}
+
 function makeDefaultRows(count = 10): TableRow[] {
   return Array.from({ length: count }, (_, i) => ({
     id: genId(),
@@ -1022,22 +1029,27 @@ export default function App() {
         <div className="card-list">
           {cards.map((card, i) => {
             const total = displayTotal(card)
+            const prevYear = i > 0 ? extractYear(cards[i - 1]?.name ?? '') : null
+            const year = extractYear(card.name)
+            const showYearGap = i > 0 && year !== null && prevYear !== null && year !== prevYear
             return (
-              <div
-                key={card.id}
-                className={`summary-card${i === 0 ? ' summary-card--latest' : ''}`}
-                onClick={() => openDetail(card)}
-              >
-                <div className="card-header">
-                  <p className="card-name">{card.name}</p>
-                  <span className="card-amount">{formatAmount(total)}원</span>
-                  <button
-                    className="card-delete-btn"
-                    title="카드 삭제"
-                    onClick={(e) => handleDeleteCard(e, card.id, card.name)}
-                  >
-                    <IconTrash />
-                  </button>
+              <div key={card.id}>
+                {showYearGap ? <div className="year-gap" aria-hidden="true" /> : null}
+                <div
+                  className={`summary-card${i === 0 ? ' summary-card--latest' : ''}`}
+                  onClick={() => openDetail(card)}
+                >
+                  <div className="card-header">
+                    <p className="card-name">{card.name}</p>
+                    <span className="card-amount">{formatAmount(total)}원</span>
+                    <button
+                      className="card-delete-btn"
+                      title="카드 삭제"
+                      onClick={(e) => handleDeleteCard(e, card.id, card.name)}
+                    >
+                      <IconTrash />
+                    </button>
+                  </div>
                 </div>
               </div>
             )

@@ -447,6 +447,11 @@
   gap: 14px;
 }
 
+.year-gap {
+  /* 기본 gap(14px)의 3배(42px)가 되도록 추가 여백 28px */
+  height: 28px;
+}
+
 /* ── summary card (main page) ── */
 .summary-card {
   background: #fff;
