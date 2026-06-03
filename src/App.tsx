@@ -43,11 +43,35 @@ function formatAmount(n: number): string {
   return n.toLocaleString('ko-KR')
 }
 
+function parseAmountInput(raw: string): number {
+  const cleaned = raw.replace(/,/g, '').trim()
+  if (cleaned === '' || cleaned === '-') return 0
+  const n = parseFloat(cleaned)
+  return isNaN(n) ? 0 : n
+}
+
+function formatAmountField(amount: number, editing: boolean): string {
+  if (amount === 0) return ''
+  return editing ? String(amount) : formatAmount(amount)
+}
+
 function extractYear(cardName: string): number | null {
-  const m = String(cardName ?? '').trim().match(/^(\d{4})년\b/)
+  // "2025년 12월" / "2026년1월" 같이 한글/공백 변형을 모두 허용
+  const m = String(cardName ?? '').trim().match(/^(\d{4})년/)
   if (!m) return null
   const y = Number(m[1])
   return Number.isFinite(y) ? y : null
+}
+
+function pickLatestCard(cards: NestEggCard[]) {
+  if (cards.length === 0) return null
+  const sorted = [...cards].sort((a, b) => {
+    const aCreated = new Date((a as any).created_at ?? 0).getTime()
+    const bCreated = new Date((b as any).created_at ?? 0).getTime()
+    if (aCreated && bCreated && aCreated !== bCreated) return bCreated - aCreated
+    return 0
+  })
+  return sorted[0] ?? null
 }
 
 function makeDefaultRows(count = 10): TableRow[] {
@@ -90,6 +114,15 @@ function IconTrash() {
       <path d="M19 6l-1 14H6L5 6" />
       <path d="M10 11v6M14 11v6" />
       <path d="M9 6V4h6v2" />
+    </svg>
+  )
+}
+
+function IconEdit() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
     </svg>
   )
 }
@@ -159,7 +192,7 @@ function ConfirmDialog({ title, message, onConfirm, onCancel }: ConfirmDialogPro
         <p className="confirm-message">{message}</p>
         <div className="modal-actions">
           <button className="secondary-button" onClick={onCancel}>취소</button>
-          <button className="primary-button" style={{ background: '#dc2626', boxShadow: 'none' }} onClick={onConfirm}>삭제</button>
+          <button className="primary-button" style={{ background: 'var(--pink-mid)', boxShadow: 'none' }} onClick={onConfirm}>삭제</button>
         </div>
       </div>
     </div>
@@ -193,6 +226,13 @@ export default function App() {
   const [creating, setCreating] = useState(false)
   const [createCardError, setCreateCardError] = useState('')
 
+  // rename modal
+  const [showRenameModal, setShowRenameModal] = useState(false)
+  const [renameCardId, setRenameCardId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [renaming, setRenaming] = useState(false)
+  const [renameError, setRenameError] = useState('')
+
   // confirm dialog
   const [confirmState, setConfirmState] = useState<{
     title: string; message: string; resolve: (v: boolean) => void
@@ -200,6 +240,7 @@ export default function App() {
 
   // detail: selected row
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
+  const [editingAmountRowId, setEditingAmountRowId] = useState<string | null>(null)
 
   // save debounce
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -409,7 +450,7 @@ export default function App() {
       // Copy content from the most recent card if exists (keep col2, clear col3)
       let rows: TableRow[]
       if (cards.length > 0) {
-        const prevCard = cards[0] // newest first
+        const prevCard = pickLatestCard(cards) ?? cards[0]
         rows = prevCard.rows.map((r) => ({
           id: genId(),
           content: r.content,
@@ -435,6 +476,38 @@ export default function App() {
       showToast(msg)
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function handleRenameCardSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const nextName = renameValue.trim()
+    if (!renameCardId) return
+    if (!nextName) {
+      setRenameError('카드 이름을 입력해 주세요.')
+      return
+    }
+    if (!supabaseReady) {
+      setRenameError('Supabase가 설정되지 않았어요.')
+      return
+    }
+    setRenaming(true)
+    setRenameError('')
+    try {
+      const supabase = getSupabaseClient()
+      const { error } = await supabase.from('nest_egg_cards').update({ name: nextName }).eq('id', renameCardId)
+      if (error) throw error
+      await loadCards()
+      setShowRenameModal(false)
+      setRenameCardId(null)
+      setRenameValue('')
+      showToast('카드 이름을 수정했어요')
+    } catch (err) {
+      const msg = getErrorMessage(err)
+      setRenameError(msg)
+      showToast(msg)
+    } finally {
+      setRenaming(false)
     }
   }
 
@@ -464,6 +537,7 @@ export default function App() {
   function openDetail(card: NestEggCard) {
     setSelectedCard(card)
     setSelectedRowId(null)
+    setEditingAmountRowId(null)
     setView('detail')
     window.scrollTo(0, 0)
   }
@@ -472,6 +546,7 @@ export default function App() {
     setView('main')
     setSelectedCard(null)
     setSelectedRowId(null)
+    setEditingAmountRowId(null)
   }
 
   // ── save rows (debounced) ─────────────────────────────────────────────────
@@ -577,11 +652,11 @@ export default function App() {
   }
 
   function handleTotalInput(raw: string) {
-    if (raw.trim() === '') {
+    if (raw.replace(/,/g, '').trim() === '') {
       updateCard((card) => ({ ...card, manual_total: null }))
       return
     }
-    const n = parseFloat(raw.replace(/,/g, ''))
+    const n = parseAmountInput(raw)
     if (!isNaN(n)) {
       updateCard((card) => ({ ...card, manual_total: n }))
     }
@@ -833,18 +908,24 @@ export default function App() {
                 <div className="excel-cell cell-amount">
                   <input
                     className="excel-input excel-input--amount"
-                    type="number"
-                    value={row.amount === 0 ? '' : row.amount}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatAmountField(row.amount, editingAmountRowId === row.id)}
                     placeholder="0"
                     data-row-id={row.id}
                     data-col="amount"
                     onChange={(e) => {
-                      const v = e.target.value === '' ? 0 : parseFloat(e.target.value)
-                      updateRow(row.id, 'amount', isNaN(v) ? 0 : v)
+                      updateRow(row.id, 'amount', parseAmountInput(e.target.value))
                     }}
                     onKeyDown={(e) => handleEnterMove(e, row.id, 'amount')}
                     onClick={(e) => e.stopPropagation()}
-                    onFocus={() => setSelectedRowId(row.id)}
+                    onFocus={() => {
+                      setSelectedRowId(row.id)
+                      setEditingAmountRowId(row.id)
+                    }}
+                    onBlur={() => {
+                      if (editingAmountRowId === row.id) setEditingAmountRowId(null)
+                    }}
                   />
                 </div>
               </div>
@@ -915,9 +996,7 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ marginTop: 12, fontSize: '0.8rem', color: '#c084a8', textAlign: 'center' }}>
-          행을 클릭해서 선택 후 ↑↓ 이동 또는 삭제할 수 있어요 · 합계는 직접 입력도 가능해요
-        </div>
+        
       </div>
     )
   }
@@ -928,6 +1007,17 @@ export default function App() {
     if (card.manual_total !== null) return card.manual_total
     return computeTotal(card.rows)
   }
+
+  const sortedCardsLatest = (() => {
+    const list = [...cards]
+    list.sort((a, b) => {
+      const aCreated = new Date((a as any).created_at ?? 0).getTime()
+      const bCreated = new Date((b as any).created_at ?? 0).getTime()
+      if (aCreated && bCreated && aCreated !== bCreated) return bCreated - aCreated
+      return 0
+    })
+    return list
+  })()
 
   return (
     <div className="app-shell">
@@ -985,6 +1075,52 @@ export default function App() {
         </div>
       )}
 
+      {showRenameModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setShowRenameModal(false)
+            setRenameError('')
+          }}
+        >
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal-title">카드 이름 수정</h2>
+            <form onSubmit={handleRenameCardSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div className="field">
+                <label htmlFor="rename-card-name">카드 이름</label>
+                <input
+                  id="rename-card-name"
+                  type="text"
+                  value={renameValue}
+                  onChange={(e) => {
+                    setRenameValue(e.target.value)
+                    if (renameError) setRenameError('')
+                  }}
+                  autoFocus
+                  required
+                />
+              </div>
+              {renameError ? <p className="error-text">{renameError}</p> : null}
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => {
+                    setShowRenameModal(false)
+                    setRenameError('')
+                  }}
+                >
+                  취소
+                </button>
+                <button type="submit" className="primary-button" disabled={renaming || !renameValue.trim()}>
+                  {renaming ? '저장 중...' : '저장'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {(toastMsg || statusMessage) ? (
         <div className="toast-message">{toastMsg || statusMessage}</div>
       ) : null}
@@ -1027,9 +1163,9 @@ export default function App() {
         </div>
       ) : (
         <div className="card-list">
-          {cards.map((card, i) => {
+          {sortedCardsLatest.map((card, i) => {
             const total = displayTotal(card)
-            const prevYear = i > 0 ? extractYear(cards[i - 1]?.name ?? '') : null
+            const prevYear = i > 0 ? extractYear(sortedCardsLatest[i - 1]?.name ?? '') : null
             const year = extractYear(card.name)
             const showYearGap = i > 0 && year !== null && prevYear !== null && year !== prevYear
             return (
@@ -1042,6 +1178,19 @@ export default function App() {
                   <div className="card-header">
                     <p className="card-name">{card.name}</p>
                     <span className="card-amount">{formatAmount(total)}원</span>
+                    <button
+                      className="card-edit-btn"
+                      title="카드 이름 수정"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setRenameCardId(card.id)
+                        setRenameValue(card.name ?? '')
+                        setRenameError('')
+                        setShowRenameModal(true)
+                      }}
+                    >
+                      <IconEdit />
+                    </button>
                     <button
                       className="card-delete-btn"
                       title="카드 삭제"

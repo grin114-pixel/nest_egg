@@ -555,13 +555,53 @@
   transition: color 0.15s, background 0.15s, border-color 0.15s;
 }
 
+.card-edit-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(236, 72, 153, 0.22);
+  background: transparent;
+  color: #e0a8c2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  border-radius: 10px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.card-edit-btn:hover {
+  color: var(--pink-mid);
+  background: var(--pink-pale);
+  border-color: var(--pink-outline);
+}
+
+.card-edit-btn:active {
+  color: var(--pink-mid);
+  background: var(--pink-light);
+  border-color: var(--pink-outline);
+}
+
 .card-delete-btn:hover {
   color: #ef4444;
   background: #fff1f2;
   border-color: rgba(239, 68, 68, 0.28);
 }
 
+.card-delete-btn:active {
+  color: var(--pink-mid);
+  background: var(--pink-light);
+  border-color: var(--pink-outline);
+  transform: translateY(0);
+}
+
 .card-delete-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.card-edit-btn svg {
   width: 15px;
   height: 15px;
 }
@@ -698,7 +738,7 @@
   color: var(--pink);
   outline: none;
   height: 34px;
-  text-align: right;
+  text-align: center;
 }
 
 .total-amount-input:focus {
