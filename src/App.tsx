@@ -43,16 +43,28 @@ function formatAmount(n: number): string {
   return n.toLocaleString('ko-KR')
 }
 
-function parseAmountInput(raw: string): number {
+function parseAmountInput(raw: string): number | null {
   const cleaned = raw.replace(/,/g, '').trim()
-  if (cleaned === '' || cleaned === '-') return 0
+  if (cleaned === '' || cleaned === '-' || cleaned === '.') return null
   const n = parseFloat(cleaned)
-  return isNaN(n) ? 0 : n
+  return isNaN(n) ? null : n
 }
 
-function formatAmountField(amount: number, editing: boolean): string {
+function sanitizeAmountInput(raw: string): string {
+  let s = raw.replace(/[^\d,.\-]/g, '')
+  const negative = s.startsWith('-')
+  s = s.replace(/-/g, '')
+  if (negative) s = '-' + s
+  const dotIdx = s.indexOf('.')
+  if (dotIdx !== -1) {
+    s = s.slice(0, dotIdx + 1) + s.slice(dotIdx + 1).replace(/\./g, '')
+  }
+  return s
+}
+
+function formatAmountDisplay(amount: number): string {
   if (amount === 0) return ''
-  return editing ? String(amount) : formatAmount(amount)
+  return formatAmount(amount)
 }
 
 function extractYear(cardName: string): number | null {
@@ -241,6 +253,9 @@ export default function App() {
   // detail: selected row
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
   const [editingAmountRowId, setEditingAmountRowId] = useState<string | null>(null)
+  const [amountDraft, setAmountDraft] = useState<string | null>(null)
+  const [editingTotal, setEditingTotal] = useState(false)
+  const [totalDraft, setTotalDraft] = useState<string | null>(null)
 
   // save debounce
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -538,6 +553,9 @@ export default function App() {
     setSelectedCard(card)
     setSelectedRowId(null)
     setEditingAmountRowId(null)
+    setAmountDraft(null)
+    setEditingTotal(false)
+    setTotalDraft(null)
     setView('detail')
     window.scrollTo(0, 0)
   }
@@ -547,6 +565,9 @@ export default function App() {
     setSelectedCard(null)
     setSelectedRowId(null)
     setEditingAmountRowId(null)
+    setAmountDraft(null)
+    setEditingTotal(false)
+    setTotalDraft(null)
   }
 
   // ── save rows (debounced) ─────────────────────────────────────────────────
@@ -651,15 +672,31 @@ export default function App() {
     setSelectedRowId(null)
   }
 
-  function handleTotalInput(raw: string) {
-    if (raw.replace(/,/g, '').trim() === '') {
+  function handleTotalDraftChange(raw: string) {
+    const sanitized = sanitizeAmountInput(raw)
+    setTotalDraft(sanitized)
+    if (sanitized.replace(/,/g, '').trim() === '') {
       updateCard((card) => ({ ...card, manual_total: null }))
       return
     }
-    const n = parseAmountInput(raw)
-    if (!isNaN(n)) {
+    const n = parseAmountInput(sanitized)
+    if (n !== null) {
       updateCard((card) => ({ ...card, manual_total: n }))
     }
+  }
+
+  function commitTotalDraft() {
+    const cleaned = (totalDraft ?? '').replace(/,/g, '').trim()
+    if (cleaned === '' || cleaned === '-') {
+      updateCard((card) => ({ ...card, manual_total: null }))
+    } else {
+      const n = parseAmountInput(totalDraft ?? '')
+      if (n !== null) {
+        updateCard((card) => ({ ...card, manual_total: n }))
+      }
+    }
+    setEditingTotal(false)
+    setTotalDraft(null)
   }
 
   // ── enter key moves focus ─────────────────────────────────────────────────
@@ -910,21 +947,34 @@ export default function App() {
                     className="excel-input excel-input--amount"
                     type="text"
                     inputMode="numeric"
-                    value={formatAmountField(row.amount, editingAmountRowId === row.id)}
+                    value={
+                      editingAmountRowId === row.id && amountDraft !== null
+                        ? amountDraft
+                        : formatAmountDisplay(row.amount)
+                    }
                     placeholder="0"
                     data-row-id={row.id}
                     data-col="amount"
                     onChange={(e) => {
-                      updateRow(row.id, 'amount', parseAmountInput(e.target.value))
+                      const sanitized = sanitizeAmountInput(e.target.value)
+                      setAmountDraft(sanitized)
+                      const n = parseAmountInput(sanitized)
+                      if (n !== null) updateRow(row.id, 'amount', n)
                     }}
                     onKeyDown={(e) => handleEnterMove(e, row.id, 'amount')}
                     onClick={(e) => e.stopPropagation()}
                     onFocus={() => {
                       setSelectedRowId(row.id)
                       setEditingAmountRowId(row.id)
+                      setAmountDraft(row.amount === 0 ? '' : String(row.amount))
                     }}
                     onBlur={() => {
-                      if (editingAmountRowId === row.id) setEditingAmountRowId(null)
+                      if (editingAmountRowId === row.id) {
+                        const n = parseAmountInput(amountDraft ?? '')
+                        updateRow(row.id, 'amount', n ?? 0)
+                        setAmountDraft(null)
+                        setEditingAmountRowId(null)
+                      }
                     }}
                   />
                 </div>
@@ -942,20 +992,23 @@ export default function App() {
                   className="total-amount-input"
                   type="text"
                   inputMode="numeric"
-                  value={selectedCard.manual_total !== null ? formatAmount(selectedCard.manual_total) : formatAmount(autoTotal)}
+                  value={
+                    editingTotal && totalDraft !== null
+                      ? totalDraft
+                      : selectedCard.manual_total !== null
+                        ? formatAmount(selectedCard.manual_total)
+                        : formatAmount(autoTotal)
+                  }
                   placeholder={formatAmount(autoTotal)}
-                  onChange={(e) => handleTotalInput(e.target.value)}
-                  onFocus={(e) => {
-                    const raw = selectedCard.manual_total !== null
-                      ? String(selectedCard.manual_total)
-                      : String(autoTotal)
-                    e.target.value = raw
+                  onChange={(e) => handleTotalDraftChange(e.target.value)}
+                  onFocus={() => {
+                    setEditingTotal(true)
+                    const base = selectedCard.manual_total !== null
+                      ? selectedCard.manual_total
+                      : autoTotal
+                    setTotalDraft(base === 0 ? '' : String(base))
                   }}
-                  onBlur={(e) => {
-                    if (e.target.value.trim() === '') {
-                      updateCard((card) => ({ ...card, manual_total: null }))
-                    }
-                  }}
+                  onBlur={commitTotalDraft}
                   title={`자동 계산: ${formatAmount(autoTotal)}원 / 직접 입력 가능`}
                 />
               </div>
