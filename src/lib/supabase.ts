@@ -13,6 +13,15 @@ export type NestEggCard = {
   name: string
   rows: TableRow[]
   manual_total: number | null
+  /** true = 마이너스 포함(A), false = 미포함(B) */
+  include_negatives: boolean
+  /**
+   * 신규 생성분 A/B 페어 키.
+   * null 이면 기존 카드(동기화·마이너스 파트 없음).
+   */
+  pair_id: string | null
+  /** B 페어 카드 전용 마이너스 내역 (A·기존 카드는 빈 배열) */
+  minus_rows: TableRow[]
   created_at: string
 }
 
@@ -31,6 +40,9 @@ export type Database = {
           name: string
           rows: TableRow[]
           manual_total: number | null
+          include_negatives: boolean
+          pair_id: string | null
+          minus_rows: TableRow[]
           created_at: string
         }
         Insert: {
@@ -38,6 +50,9 @@ export type Database = {
           name: string
           rows?: TableRow[]
           manual_total?: number | null
+          include_negatives?: boolean
+          pair_id?: string | null
+          minus_rows?: TableRow[]
           created_at?: string
         }
         Update: {
@@ -45,6 +60,9 @@ export type Database = {
           name?: string
           rows?: TableRow[]
           manual_total?: number | null
+          include_negatives?: boolean
+          pair_id?: string | null
+          minus_rows?: TableRow[]
         }
         Relationships: []
       }

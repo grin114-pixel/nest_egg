@@ -22,11 +22,24 @@ create table if not exists nest_egg_cards (
   name text not null,
   rows jsonb not null default '[]'::jsonb,
   manual_total numeric,
+  include_negatives boolean not null default true,
+  pair_id uuid,
+  minus_rows jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
 
 -- 이전 버전(user_id 열)에서 업그레이드한 경우
 alter table nest_egg_cards drop column if exists user_id;
+
+-- 기존 DB에 열이 없을 때
+alter table nest_egg_cards
+  add column if not exists include_negatives boolean not null default true;
+
+alter table nest_egg_cards
+  add column if not exists pair_id uuid;
+
+alter table nest_egg_cards
+  add column if not exists minus_rows jsonb not null default '[]'::jsonb;
 
 alter table nest_egg_cards enable row level security;
 
