@@ -1104,7 +1104,7 @@ export default function App() {
       <div className="auth-shell">
         <div className="pin-card">
           <div className="app-badge">
-            <IconEgg />
+            <img src="/nest-egg-icon-clear.png?v=2" alt="" className="app-badge-img" />
             <span>Nest Egg</span>
           </div>
           <section className="notice-card" style={{ margin: 0, border: '1px solid #fed7aa', background: '#fff7ed' }}>
@@ -1177,7 +1177,7 @@ export default function App() {
           ) : (
             <>
               <div className="app-badge">
-                <IconEgg />
+                <img src="/nest-egg-icon-clear.png?v=2" alt="" className="app-badge-img" />
                 <span>Nest Egg</span>
               </div>
               <div className="pin-entry-field">

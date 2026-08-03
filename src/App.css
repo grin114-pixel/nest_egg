@@ -56,15 +56,23 @@
   font-weight: 700;
 }
 
-.app-badge svg {
-  width: 36px;
-  height: 36px;
+.app-badge svg,
+.app-badge-img {
+  width: 52px;
+  height: 52px;
   filter: drop-shadow(0 2px 4px rgba(139, 90, 43, 0.16));
 }
 
+.app-badge-img {
+  object-fit: cover;
+  display: block;
+  border-radius: 12px;
+}
+
 .pin-card .app-badge span {
-  font-size: 121%;
+  font-size: 1.55rem;
   font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .empty-illustration svg {
